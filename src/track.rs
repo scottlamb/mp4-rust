@@ -250,6 +250,18 @@ impl Mp4Track {
         }
     }
 
+    /// Returns the codec-specific "extra data" as needed by e.g. ffmpeg.
+    ///
+    /// *   AVC: the `AVCDecoderConfigurationRecord` as defined in ISO/IEC
+    ///     14496-15:2004(E) section 5.2.4.1.
+    pub fn extra_data(&self) -> Result<Bytes> {
+        if let Some(ref avc1) = self.trak.mdia.minf.stbl.stsd.avc1 {
+            Ok(avc1.avcc.to_record())
+        } else {
+            Err(Error::InvalidData("unsupported media type"))
+        }
+    }
+
     pub fn video_profile(&self) -> Result<AvcProfile> {
         if let Some(ref avc1) = self.trak.mdia.minf.stbl.stsd.avc1 {
             AvcProfile::try_from((

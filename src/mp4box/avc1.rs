@@ -174,22 +174,49 @@ impl AvcCBox {
             picture_parameter_sets: vec![NalUnit::from(pps)],
         }
     }
-}
 
+    /// Returns the contents of this box as an `AVCDecoderConfigurationRecord`.
+    pub fn to_record(&self) -> Bytes {
+        let mut out = Vec::with_capacity(self.record_size());
+        self.write_record(&mut out).expect("write to Vec failed");
+        Bytes::from(out)
+    }
+
+    fn record_size(&self) -> usize {
+        let mut size = 7;
+        for sps in self.sequence_parameter_sets.iter() {
+            size += sps.size();
+        }
+        for pps in self.picture_parameter_sets.iter() {
+            size += pps.size();
+        }
+        size
+    }
+
+    fn write_record<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u8(self.configuration_version)?;
+        writer.write_u8(self.avc_profile_indication)?;
+        writer.write_u8(self.profile_compatibility)?;
+        writer.write_u8(self.avc_level_indication)?;
+        writer.write_u8(self.length_size_minus_one | 0xFC)?;
+        writer.write_u8(self.sequence_parameter_sets.len() as u8 | 0xE0)?;
+        for sps in self.sequence_parameter_sets.iter() {
+            sps.write(writer)?;
+        }
+        writer.write_u8(self.picture_parameter_sets.len() as u8)?;
+        for pps in self.picture_parameter_sets.iter() {
+            pps.write(writer)?;
+        }
+        Ok(())
+    }
+}
 impl Mp4Box for AvcCBox {
     fn box_type(&self) -> BoxType {
         BoxType::AvcCBox
     }
 
     fn box_size(&self) -> u64 {
-        let mut size = HEADER_SIZE + 7;
-        for sps in self.sequence_parameter_sets.iter() {
-            size += sps.size() as u64;
-        }
-        for pps in self.picture_parameter_sets.iter() {
-            size += pps.size() as u64;
-        }
-        size
+        HEADER_SIZE + self.record_size() as u64
     }
 
     fn to_json(&self) -> Result<String> {
@@ -243,20 +270,7 @@ impl<W: Write> WriteBox<&mut W> for AvcCBox {
     fn write_box(&self, writer: &mut W) -> Result<u64> {
         let size = self.box_size();
         BoxHeader::new(self.box_type(), size).write(writer)?;
-
-        writer.write_u8(self.configuration_version)?;
-        writer.write_u8(self.avc_profile_indication)?;
-        writer.write_u8(self.profile_compatibility)?;
-        writer.write_u8(self.avc_level_indication)?;
-        writer.write_u8(self.length_size_minus_one | 0xFC)?;
-        writer.write_u8(self.sequence_parameter_sets.len() as u8 | 0xE0)?;
-        for sps in self.sequence_parameter_sets.iter() {
-            sps.write(writer)?;
-        }
-        writer.write_u8(self.picture_parameter_sets.len() as u8)?;
-        for pps in self.picture_parameter_sets.iter() {
-            pps.write(writer)?;
-        }
+        self.write_record(writer)?;
         Ok(size)
     }
 }
