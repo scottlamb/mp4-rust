@@ -62,7 +62,7 @@ pub(crate) mod co64;
 pub(crate) mod ctts;
 pub(crate) mod dinf;
 pub(crate) mod edts;
-pub(crate) mod elst;
+pub mod elst;
 pub(crate) mod ftyp;
 pub(crate) mod hev1;
 pub(crate) mod hdlr;

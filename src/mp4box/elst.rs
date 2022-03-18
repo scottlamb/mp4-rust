@@ -3,6 +3,7 @@ use std::io::{Read, Seek, Write};
 use serde::{Serialize};
 
 use crate::mp4box::*;
+use crate::types::FixedPointU16;
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize)]
 pub struct ElstBox {
@@ -13,12 +14,21 @@ pub struct ElstBox {
     pub entries: Vec<ElstEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ElstEntry {
     pub segment_duration: u64,
     pub media_time: u64,
-    pub media_rate: u16,
-    pub media_rate_fraction: u16,
+    pub media_rate: FixedPointU16,
+}
+
+impl Default for ElstEntry {
+    fn default() -> Self {
+        ElstEntry {
+            segment_duration: 0,
+            media_time: 0,
+            media_rate: FixedPointU16::new(1),
+        }
+    }
 }
 
 impl ElstBox {
@@ -80,8 +90,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for ElstBox {
             let entry = ElstEntry {
                 segment_duration,
                 media_time,
-                media_rate: reader.read_u16::<BigEndian>()?,
-                media_rate_fraction: reader.read_u16::<BigEndian>()?,
+                media_rate: FixedPointU16::new_raw(reader.read_u32::<BigEndian>()?),
             };
             entries.push(entry);
         }
@@ -112,8 +121,7 @@ impl<W: Write> WriteBox<&mut W> for ElstBox {
                 writer.write_u32::<BigEndian>(entry.segment_duration as u32)?;
                 writer.write_u32::<BigEndian>(entry.media_time as u32)?;
             }
-            writer.write_u16::<BigEndian>(entry.media_rate)?;
-            writer.write_u16::<BigEndian>(entry.media_rate_fraction)?;
+            writer.write_u32::<BigEndian>(entry.media_rate.raw_value())?;
         }
 
         Ok(size)
@@ -134,8 +142,7 @@ mod tests {
             entries: vec![ElstEntry {
                 segment_duration: 634634,
                 media_time: 0,
-                media_rate: 1,
-                media_rate_fraction: 0,
+                media_rate: FixedPointU16::new(1),
             }],
         };
         let mut buf = Vec::new();
@@ -159,8 +166,7 @@ mod tests {
             entries: vec![ElstEntry {
                 segment_duration: 634634,
                 media_time: 0,
-                media_rate: 1,
-                media_rate_fraction: 0,
+                media_rate: FixedPointU16::new(1),
             }],
         };
         let mut buf = Vec::new();
